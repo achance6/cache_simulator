@@ -1,5 +1,4 @@
 #include "io.hpp"
-#include "cache_commands.hpp"
 #include <exception>
 
 int main(int argc, char *argv[])
@@ -22,12 +21,11 @@ int main(int argc, char *argv[])
     info.lines_per_set > 1 ? info.eject_type = argv[6] : info.eject_type = "fifo";
     if (!validate_info(info))
     {
-        cout << "Error: Invalid Parameters\n";
+        cout << "Error: Invalid Parameters" << endl;
         return 1;
     }
     cache_cmds cache_commands;
-    readInput(cache_commands);
-    shared_ptr<Cache> cache = simulate_cache(cache_commands, info);
-    print_output(cache->get_cache_stats());
+    read_input(cache_commands);
+    print_output(simulate_cache(cache_commands, info)->get_cache_stats());
     return 0;
 }

@@ -2,6 +2,9 @@
 #define _CACHE
 
 #include "cache_defs.hpp"
+#include <memory>
+
+using std::shared_ptr;
 
 class Cache
 {
@@ -9,13 +12,13 @@ public:
     Cache(cache_info info);
     bool load(uint32_t address);
     bool store(uint32_t address);
-    int get_cache_type();
+    uint32_t get_cache_type();
     cache_stats get_cache_stats() { return stats; }
 
 private:
-    int index_bit_count;
-    int offset_bit_count;
-    int tag_bit_count;
+    uint32_t index_bit_count;
+    uint32_t offset_bit_count;
+    uint32_t tag_bit_count;
     cache_info info;
     map<INDEX, CACHE_SET> sets;
     cache_stats stats;
@@ -30,5 +33,8 @@ private:
     void LRU_increment(CACHE_SET &set);
     void print_sets(uint32_t address, CACHE_SET &set);
 };
+
+
+shared_ptr<Cache> simulate_cache(vector<cache_cmd> cmds, cache_info info);
 
 #endif

@@ -1,4 +1,4 @@
-#include "cache_commands.hpp"
+#include "cache.hpp"
 #include "io.hpp"
 
 shared_ptr<Cache> simulate_cache(cache_cmds cmds, cache_info info)
@@ -7,14 +7,7 @@ shared_ptr<Cache> simulate_cache(cache_cmds cmds, cache_info info)
     for (auto cmd : cmds)
     {
         uint32_t address = (uint32_t)std::stoul(cmd.address, nullptr, 16);
-        if (cmd.ls == 'l')
-        {
-            cache->load(address);
-        }
-        else if (cmd.ls == 's')
-        {
-            cache->store(address);
-        }
+        cmd.ls == 'l' ? cache->load(address) : cache->store(address);;
         // std::cout << "Total Cycles: " << cache->get_cache_stats().total_cycles << std::endl << std::endl;
     }
     return cache;
@@ -39,7 +32,24 @@ Cache::Cache(cache_info info) : info(info)
 //         // std::cout << "index: " << get_index(address) << std::endl;
 //         // std::cout << "offset: " << get_offset(address) << std::endl;
 //     }
+// Gets the type of cache
+uint32_t Cache::get_cache_type()
+{
+    if (info.lines_per_set == 1)
+    {
+        return DIRECT_MAPPED;
+    }
+    else if (info.set_count > 1 && info.lines_per_set > 1)
+    {
+        return SET_ASSOCIATIVE;
+    }
+    else
+    {
+        return FULLY_ASSOCIATIVE;
+    }
+}
 
+// Executes load command
 bool Cache::load(uint32_t address)
 {
     stats.total_loads += 1;
@@ -49,8 +59,6 @@ bool Cache::load(uint32_t address)
     // print_sets(address, *set);
     // Look for tag in set
     auto line_containing_word = set->find(get_tag(address));
-
-    
 
     // load miss, load line into cache from disk. 
     // I use placeholders tag but sometimes its is actually the memory address, so I must check for that thru valid checks
@@ -92,6 +100,7 @@ bool Cache::load(uint32_t address)
     return true;
 }
 
+// Execute store command
 bool Cache::store(uint32_t address)
 {
     stats.total_stores += 1;
@@ -166,22 +175,23 @@ bool Cache::store(uint32_t address)
     return true;
 }
 
-int Cache::get_cache_type()
+// Fill map of sets out with sets associated with an index, and fill those sets with empty line(s).
+void Cache::init_sets()
 {
-    if (info.lines_per_set == 1)
+    auto set_count = info.set_count;
+    auto lines_per_set = info.lines_per_set;
+    for (uint32_t i = 0; i < set_count; ++i)
     {
-        return DIRECT_MAPPED;
-    }
-    else if (info.set_count > 1 && info.lines_per_set > 1)
-    {
-        return SET_ASSOCIATIVE;
-    }
-    else
-    {
-        return FULLY_ASSOCIATIVE;
+        CACHE_SET set;
+        for (uint32_t j = 0; j < lines_per_set; ++j)
+        {
+            set.insert(pair<INDEX, cache_line>(j, cache_line())); // insert empty lines to fill out set
+        }
+        sets.insert(pair<INDEX, CACHE_SET>(i, set)); // insert set into cache sets
     }
 }
 
+// Computes bits needed for tag, index, and offset
 void Cache::distribute_bits()
 {
     switch (get_cache_type())
@@ -197,22 +207,6 @@ void Cache::distribute_bits()
         offset_bit_count = log2(info.bytes_per_line);
         tag_bit_count = DISK_BITS - offset_bit_count;
         break;
-    }
-}
-
-// Fill map of sets out with sets associated with an index, and fill those sets with empty line(s).
-void Cache::init_sets()
-{
-    auto set_count = info.set_count;
-    auto lines_per_set = info.lines_per_set;
-    for (uint32_t i = 0; i < set_count; ++i)
-    {
-        CACHE_SET set;
-        for (uint32_t j = 0; j < lines_per_set; ++j)
-        {
-            set.insert(pair<INDEX, cache_line>(j, cache_line())); // insert empty lines to fill out set
-        }
-        sets.insert(pair<INDEX, CACHE_SET>(i, set)); // insert set into cache sets
     }
 }
 
@@ -264,8 +258,9 @@ void Cache::FIFO_miss(uint32_t address, CACHE_SET &set)
     }
 }
 
-// Least Recently Used insertion method. Inserted line has access order of zero and we iterate access order of all other valid lines.
-// If there is a hole we don't need to evict, if there is not then we evict one with highest access order.
+// Least Recently Used insertion method. If a line needs to be then inserted line has access order of zero.
+// If a line already exists 
+// If there is a hole we don't need to evict, if there is not then we evict one with highest access order (back of the line).
 void Cache::LRU_miss(uint32_t address, CACHE_SET &set)
 {
     uint32_t oldest_access_order = 0;
@@ -310,7 +305,7 @@ void Cache::LRU_miss(uint32_t address, CACHE_SET &set)
     }
 }
 
-// shifts the set, bringing the given line to the front and incrementing the orders of all in front of it.
+// Brings the given line to the front and increments the orders of all lines in front of it.
 void Cache::LRU_shift(cache_line& line, CACHE_SET &set)
 {
     uint32_t line_access_order = line.access_order;
@@ -324,6 +319,7 @@ void Cache::LRU_shift(cache_line& line, CACHE_SET &set)
     line.access_order = 0;
 }
 
+// Increments the access order of every line in the set
 void Cache::LRU_increment(CACHE_SET &set) {
     for (auto& line: set) {
         line.second.access_order += 1;

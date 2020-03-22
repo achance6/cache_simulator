@@ -13,7 +13,7 @@ using std::vector;
 
 typedef vector<cache_cmd> cache_cmds;
 bool validate_info(cache_info info);
-void readInput(cache_cmds &cmds);
+void read_input(cache_cmds &cmds);
 void print_output(cache_stats out);
 
 #endif
